@@ -2,3 +2,7 @@
 # exe에 번들되어 있던 버전 기준
 customtkinter==6.0.0
 requests>=2.31
+
+# 미국주식 분석(us_engine.py) — yfinance 프로토타입
+yfinance>=1.5
+pandas>=2.0

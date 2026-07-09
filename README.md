@@ -46,13 +46,34 @@ python dart_gui.py
 | 직원 | 총직원/정규직·계약직/평균근속/1인평균급여 | `empSttus` |
 | 자본변동 | 증자(감자)·자기주식 취득/처분 | `irdsSttus`, `tesstkAcqsDspsSttus` |
 
+## 미국주식 분석 (프로토타입, `us_engine.py` / `us_report.py`)
+
+한국(DART)에 더해 **미국 상장기업의 현금창출능력**을 분석하는 프로토타입입니다.
+데이터는 [yfinance](https://github.com/ranaroussi/yfinance)(Yahoo Finance)에서 가져오며,
+**현금창출**(영업현금흐름·FCF·FCF마진·이익의 질·CapEx강도)을 중심에 두고
+**수익성**(마진·ROE·ROA·ROIC)·**성장성**·**안정성**(부채비율·유동비율·이자보상배율)·
+**밸류에이션**(PER·PBR·PSR·EV/EBITDA·FCF수익률)을 함께 계산합니다.
+
+```bash
+python us_report.py NVDA              # 단일 종목 상세 리포트
+python us_report.py NVDA MSFT AVGO    # 여러 종목 각각
+python us_report.py --screen          # AI 밸류체인 기본 12종목 현금창출 랭킹
+python us_report.py --screen MU TSM   # 지정 종목 현금창출 랭킹
+```
+
+> 과거 재무 기준의 **스크리닝(후보 압축)** 도구입니다 — 미래 예측이 아닙니다.
+> 재무 보고통화가 시총 통화와 다른 종목(예: TSM=TWD)은 금액을 보고통화로 표시하고
+> FCF수익률은 생략합니다.
+
 ## 파일 구성
 
 | 파일 | 설명 |
 |---|---|
 | `dart_engine.py` | DART API 호출·응답 파싱 로직 (17개 공개 함수) |
 | `dart_gui.py` | CustomTkinter GUI (`DartApp` 클래스) |
-| `requirements.txt` | 의존성 (customtkinter, requests) |
+| `us_engine.py` | 미국 재무분석 엔진 (yfinance, `analyze`/`screen`) |
+| `us_report.py` | 미국 분석 CLI 리포트·스크리너 데모 |
+| `requirements.txt` | 의존성 (customtkinter, requests, yfinance, pandas) |
 | `dart_downloader.exe` | 원본 배포 실행파일 (참고용) |
 
 ## 참고
