@@ -50,13 +50,15 @@ def main():
     log = lambda m: print("  ·", m)
 
     print(f"\n[1] 회사 목록 로드 + '{company}' 검색...")
-    de.load_corp_list(key, log_fn=log)
-    hits = de.search_company(company)
+    corp_list = de.load_corp_list(key, log_fn=log)
+    hits = de.search_company(corp_list, company)
     if not hits:
         print(f"✗ '{company}' 검색 결과 없음")
         return
-    corp = hits[0]
-    print(f"    → {corp['corp_name']} ({corp['corp_code']})  [검색결과 {len(hits)}건 중 첫 번째]")
+    # 정확히 일치하는 회사명 우선(부분일치 자회사 회피)
+    exact = [h for h in hits if h["corp_name"] == company]
+    corp = exact[0] if exact else hits[0]
+    print(f"    → {corp['corp_name']} ({corp['corp_code']})  [검색결과 {len(hits)}건]")
 
     end_year = "2024"  # 최근 확정 사업연도 기준 (필요시 조정)
     print(f"\n[2] 핵심재무 + 현금흐름 3개년 조회 (기준연도 {end_year})...")
