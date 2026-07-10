@@ -409,12 +409,19 @@ def calculate_financial_ratios(financials_3y, extended_3y=None):
             return None
         return numerator / denominator * 100
 
+    def yoy(cur, prev):
+        # 전년대비 성장률(%). 전년이 0 이하이면 부호 왜곡되므로 None.
+        if cur is None or prev is None or prev <= 0:
+            return None
+        return (cur - prev) / prev * 100
+
     ext_by_year = {}
     if extended_3y:
         for row in extended_3y:
             ext_by_year[row['year']] = row
 
     results = []
+    prev = {}
     for row in financials_3y:
         rev = row.get('매출액')
         op = row.get('영업이익')
@@ -438,8 +445,13 @@ def calculate_financial_ratios(financials_3y, extended_3y=None):
             '매출총이익률': safe_pct(gp, rev),
             '매출원가율': safe_pct(cogs, rev),
             '총포괄이익률': safe_pct(ci, rev),
+            # 성장성 (전년대비)
+            '매출성장률': yoy(rev, prev.get('rev')),
+            '영업이익성장률': yoy(op, prev.get('op')),
+            '순이익성장률': yoy(ni, prev.get('ni')),
         }
         results.append(ratio)
+        prev = {'rev': rev, 'op': op, 'ni': ni}
     return results
 
 

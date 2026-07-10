@@ -20,9 +20,11 @@ _DEFAULT_DOWNLOADS = os.path.join(_HERE, 'downloads')
 
 _FIN_LABELS = ['매출액', '영업이익', '당기순이익', '자산총계', '부채총계', '자본총계']
 _DIV_LABELS = ['주당배당금(원)', '배당성향(%)', '시가배당률(%)', '현금배당총액(백만원)']
-_RATIO_LABELS = ['영업이익률', '순이익률', '부채비율', 'ROE', 'ROA', '매출총이익률', '매출원가율', '총포괄이익률']
+_RATIO_LABELS = ['영업이익률', '순이익률', '부채비율', 'ROE', 'ROA', '매출총이익률', '매출원가율', '총포괄이익률',
+                 '매출성장률', '영업이익성장률', '순이익성장률']
 
-_ANALYSIS_TABS = ['핵심재무', '현금흐름', '배당', '타법인출자', '재무지표', '감사', '최대주주', '직원', '자본변동']
+# 현금흐름은 맨 마지막 탭 (기존 재무분석 + 현금흐름 보조)
+_ANALYSIS_TABS = ['핵심재무', '배당', '타법인출자', '재무지표', '감사', '최대주주', '직원', '자본변동', '현금흐름']
 
 # 현금흐름 탭에 표시할 (표시 라벨, 데이터 키, 종류) — 종류: money|pct|mult
 _CF_ROWS = [
@@ -92,6 +94,19 @@ _US_DIV_ROWS = [
     ('총현금배당', 'dividends_paid', 'usd'),
     ('배당성향(배당/순이익)', 'payout_ratio', 'pct'),
 ]
+_US_GROWTH_ROWS = [
+    ('매출성장률', 'revenue_growth', 'pct'),
+    ('영업이익성장률', 'operating_income_growth', 'pct'),
+    ('순이익성장률', 'net_income_growth', 'pct'),
+    ('EPS성장률', 'eps_growth', 'pct'),
+]
+
+
+def _yoy_pct(cur, prev):
+    '''전년대비 성장률(%). 전년이 0 이하이면 None.'''
+    if cur is None or prev is None or prev <= 0:
+        return None
+    return (cur - prev) / prev * 100.0
 
 
 def _fmt_us(val, kind):
@@ -517,16 +532,28 @@ class DartApp(ctk.CTk):
                    f"EV/EBITDA {m(val['ev_ebitda'])}   FCF수익률 {p(val['fcf_yield'])}   배당 {p(val['dividend_yield'])}")
         ctk.CTkLabel(self._us_frame, text=valline, text_color='gray70').grid(row=r, column=0, sticky='w', padx=10, pady=(0, 8)); r += 1
 
-        r = self._us_table(r, '현금창출능력', _US_CASH_ROWS, annual, years)
+        # 연도별 성장성(전년대비) 표 데이터 구성
+        growth_annual = []
+        for i, row in enumerate(annual):
+            prev = annual[i - 1] if i > 0 else {}
+            growth_annual.append({
+                'year': row['year'],
+                'revenue_growth': _yoy_pct(row.get('revenue'), prev.get('revenue')),
+                'operating_income_growth': _yoy_pct(row.get('operating_income'), prev.get('operating_income')),
+                'net_income_growth': _yoy_pct(row.get('net_income'), prev.get('net_income')),
+                'eps_growth': _yoy_pct(row.get('diluted_eps'), prev.get('diluted_eps')),
+            })
+
+        # 순서: 기존 재무분석 지표 먼저, 현금창출능력은 맨 마지막(보조 지표)
         r = self._us_table(r, '수익성', _US_PROFIT_ROWS, annual, years)
+        r = self._us_table(r, '성장성', _US_GROWTH_ROWS, growth_annual, years)
         r = self._us_table(r, '안정성', _US_STAB_ROWS, annual, years)
         r = self._us_table(r, '배당', _US_DIV_ROWS, annual, years)
+        r = self._us_table(r, '현금창출능력', _US_CASH_ROWS, annual, years)
 
-        ctk.CTkLabel(self._us_frame, text='▸ 성장성', font=ctk.CTkFont(size=13, weight='bold')).grid(row=r, column=0, sticky='w', padx=10, pady=(10, 2)); r += 1
-        gl = (f"매출 YoY {p(g['revenue_yoy'])}    매출 CAGR {p(g['revenue_cagr'])}    "
-              f"영업이익 YoY {p(g['operating_income_yoy'])}    순이익 YoY {p(g['net_income_yoy'])}    "
-              f"CFO YoY {p(g['cfo_yoy'])}    FCF YoY {p(g['fcf_yoy'])}")
-        ctk.CTkLabel(self._us_frame, text=gl, text_color='gray80', wraplength=580, justify='left').grid(row=r, column=0, sticky='w', padx=14, pady=(0, 6)); r += 1
+        cagr = (f"매출 3년 CAGR {p(g['revenue_cagr'])}    영업이익 YoY {p(g['operating_income_yoy'])}    "
+                f"FCF YoY {p(g['fcf_yoy'])}")
+        ctk.CTkLabel(self._us_frame, text=cagr, text_color='gray70').grid(row=r, column=0, sticky='w', padx=14, pady=(6, 2)); r += 1
         ctk.CTkLabel(self._us_frame, text='※ 과거 재무 기준 — 미래 예측이 아니라 후보 압축용입니다.', text_color='gray50').grid(row=r, column=0, sticky='w', padx=14, pady=(4, 10)); r += 1
 
     def _load_us(self, ticker):

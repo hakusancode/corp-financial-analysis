@@ -109,18 +109,7 @@ def report(ticker, eng=se):
     yrs = a["years"]
     ann = a["annual"]
 
-    # 현금창출 (핵심)
-    print("\n  ▸ 현금창출능력")
     header = ["지표"] + yrs
-    rows = [
-        ["영업현금흐름(CFO)"] + [money(r["cfo"], cur) for r in ann],
-        ["CapEx"]           + [money(r["capex"], cur) for r in ann],
-        ["잉여현금흐름(FCF)"] + [money(r["fcf"], cur) for r in ann],
-        ["FCF 마진"]         + [pct(r["fcf_margin"]) for r in ann],
-        ["이익의 질(CFO/영업이익)"] + [mult(r["earnings_quality"]) for r in ann],
-        ["CapEx 강도(/매출)"] + [pct(r["capex_intensity"]) for r in ann],
-    ]
-    print("  " + _cols(header, rows, ["<"] + [">"] * len(yrs)).replace("\n", "\n  "))
 
     # 수익성
     print("\n  ▸ 수익성")
@@ -136,6 +125,27 @@ def report(ticker, eng=se):
         ["ROIC"]       + [pct(r["roic"]) for r in ann],
     ]
     print("  " + _cols(header, rows, ["<"] + [">"] * len(yrs)).replace("\n", "\n  "))
+
+    # 성장성 (전년대비, 연도별)
+    def yoy(cur_v, prev_v):
+        if cur_v is None or prev_v is None or prev_v <= 0:
+            return None
+        return (cur_v - prev_v) / prev_v * 100.0
+
+    def grow_row(key):
+        out = []
+        for i, r in enumerate(ann):
+            out.append(pct(yoy(r.get(key), ann[i - 1].get(key))) if i > 0 else "-")
+        return out
+    print("\n  ▸ 성장성")
+    rows = [
+        ["매출성장률"]   + grow_row("revenue"),
+        ["영업이익성장률"] + grow_row("operating_income"),
+        ["순이익성장률"] + grow_row("net_income"),
+        ["EPS성장률"]    + grow_row("diluted_eps"),
+    ]
+    print("  " + _cols(header, rows, ["<"] + [">"] * len(yrs)).replace("\n", "\n  "))
+    print(f"    (매출 3년 CAGR {pct(g['revenue_cagr'])})")
 
     # 안정성
     print("\n  ▸ 안정성")
@@ -158,12 +168,17 @@ def report(ticker, eng=se):
     ]
     print("  " + _cols(header, rows, ["<"] + [">"] * len(yrs)).replace("\n", "\n  "))
 
-    # 성장성
-    print("\n  ▸ 성장성 (최근)")
-    print(f"    매출 YoY {pct(g['revenue_yoy'])}   매출 CAGR {pct(g['revenue_cagr'])}"
-          f"   영업이익 YoY {pct(g['operating_income_yoy'])}")
-    print(f"    순이익 YoY {pct(g['net_income_yoy'])}   CFO YoY {pct(g['cfo_yoy'])}"
-          f"   FCF YoY {pct(g['fcf_yoy'])}   EPS YoY {pct(g['eps_yoy'])}")
+    # 현금창출 (보조 지표 — 맨 마지막)
+    print("\n  ▸ 현금창출능력")
+    rows = [
+        ["영업현금흐름(CFO)"] + [money(r["cfo"], cur) for r in ann],
+        ["CapEx"]           + [money(r["capex"], cur) for r in ann],
+        ["잉여현금흐름(FCF)"] + [money(r["fcf"], cur) for r in ann],
+        ["FCF 마진"]         + [pct(r["fcf_margin"]) for r in ann],
+        ["이익의 질(CFO/영업이익)"] + [mult(r["earnings_quality"]) for r in ann],
+        ["CapEx 강도(/매출)"] + [pct(r["capex_intensity"]) for r in ann],
+    ]
+    print("  " + _cols(header, rows, ["<"] + [">"] * len(yrs)).replace("\n", "\n  "))
 
 
 # ── 스크리너 (현금창출 랭킹) ─────────────────────────────────────────────────
