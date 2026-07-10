@@ -133,6 +133,10 @@ def _extract_year(inc, bs, cf, col):
 
     capex_abs = None if capex is None else abs(capex)
 
+    div_paid = _get(cf, ["Cash Dividends Paid", "Common Stock Dividend Paid",
+                         "Cash Dividend Paid"], col)   # 보통 음수
+    diluted_shares = _get(inc, ["Diluted Average Shares", "Basic Average Shares"], col)
+
     return {
         "revenue": revenue, "gross_profit": gross, "operating_income": op_income,
         "net_income": net_income, "pretax": pretax, "tax": tax, "ebit": ebit,
@@ -141,6 +145,7 @@ def _extract_year(inc, bs, cf, col):
         "net_debt": net_debt, "invested_capital": invested_capital,
         "current_assets": cur_assets, "current_liabilities": cur_liab,
         "cfo": cfo, "capex": capex_abs, "fcf": fcf,
+        "div_paid": div_paid, "diluted_shares": diluted_shares,
     }
 
 
@@ -241,6 +246,13 @@ def analyze(ticker, log_fn=None):
         row.update(_cash_metrics(raw))
         row.update(_profitability(raw))
         row.update(_stability(raw))
+        # 배당
+        dp = raw.get("div_paid")
+        row["dividends_paid"] = None if dp is None else abs(dp)
+        sh = raw.get("diluted_shares")
+        row["dps"] = (None if (row["dividends_paid"] is None or not sh)
+                      else row["dividends_paid"] / sh)
+        row["payout_ratio"] = _pct(row["dividends_paid"], row["net_income"])
         annual.append(row)
 
     # 성장성 (과거→현재)

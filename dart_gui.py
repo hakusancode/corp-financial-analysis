@@ -87,6 +87,11 @@ _US_STAB_ROWS = [
     ('이자보상배율', 'interest_coverage', 'mult'),
     ('순부채', 'net_debt', 'usd'),
 ]
+_US_DIV_ROWS = [
+    ('주당배당금(DPS)', 'dps', 'ps'),
+    ('총현금배당', 'dividends_paid', 'usd'),
+    ('배당성향(배당/순이익)', 'payout_ratio', 'pct'),
+]
 
 
 def _fmt_us(val, kind):
@@ -94,6 +99,10 @@ def _fmt_us(val, kind):
         return _fmt_usd(val)
     if kind == 'pct':
         return _fmt_ratio_val(val)
+    if kind == 'ps':   # 주당 금액 (소액이라 소수 2자리 달러)
+        if val is None:
+            return ('N/A', 'gray50')
+        return (f'${val:.2f}', 'white')
     return _fmt_mult(val)
 
 
@@ -485,6 +494,7 @@ class DartApp(ctk.CTk):
         r = self._us_table(r, '현금창출능력', _US_CASH_ROWS, annual, years)
         r = self._us_table(r, '수익성', _US_PROFIT_ROWS, annual, years)
         r = self._us_table(r, '안정성', _US_STAB_ROWS, annual, years)
+        r = self._us_table(r, '배당', _US_DIV_ROWS, annual, years)
 
         ctk.CTkLabel(self._us_frame, text='▸ 성장성', font=ctk.CTkFont(size=13, weight='bold')).grid(row=r, column=0, sticky='w', padx=10, pady=(10, 2)); r += 1
         gl = (f"매출 YoY {p(g['revenue_yoy'])}    매출 CAGR {p(g['revenue_cagr'])}    "

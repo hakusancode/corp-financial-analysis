@@ -147,6 +147,17 @@ def report(ticker, eng=se):
     ]
     print("  " + _cols(header, rows, ["<"] + [">"] * len(yrs)).replace("\n", "\n  "))
 
+    # 배당
+    def ps(v):
+        return "N/A" if v is None else f"${v:.2f}"
+    print("\n  ▸ 배당")
+    rows = [
+        ["주당배당금(DPS)"] + [ps(r.get("dps")) for r in ann],
+        ["총현금배당"]      + [money(r.get("dividends_paid"), cur) for r in ann],
+        ["배당성향"]        + [pct(r.get("payout_ratio")) for r in ann],
+    ]
+    print("  " + _cols(header, rows, ["<"] + [">"] * len(yrs)).replace("\n", "\n  "))
+
     # 성장성
     print("\n  ▸ 성장성 (최근)")
     print(f"    매출 YoY {pct(g['revenue_yoy'])}   매출 CAGR {pct(g['revenue_cagr'])}"

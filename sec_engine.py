@@ -221,6 +221,7 @@ _C = {
             "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"],
     "capex": ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
     "dps": ["CommonStockDividendsPerShareDeclared", "CommonStockDividendsPerShareCashPaid"],
+    "div_paid": ["PaymentsOfDividendsCommonStock", "PaymentsOfDividends", "PaymentsOfDividendsCommon"],
     "total_assets": ["Assets"],
     "equity": ["StockholdersEquity",
                "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
@@ -245,6 +246,7 @@ def _build_series(gaap, dei):
         "pretax": dur("pretax"), "tax": dur("tax"),
         "interest_expense": dur("interest_expense"), "dna": dur("dna"),
         "cfo": dur("cfo"), "capex": dur("capex"), "dps": dur("dps"),
+        "div_paid": dur("div_paid"),
         "eps_diluted": _annual_duration(gaap, _C["eps_diluted"], unit="USD/shares"),
         "total_assets": ins("total_assets"), "equity": ins("equity"),
         "current_assets": ins("current_assets"), "current_liabilities": ins("current_liabilities"),
@@ -357,6 +359,11 @@ def analyze(ticker, log_fn=None, with_price=True):
         row.update(_cash_metrics(raw))
         row.update(_profitability(raw))
         row.update(_stability(raw))
+        # 배당
+        row['dps'] = s['dps'].get(y)
+        dp = s['div_paid'].get(y)
+        row['dividends_paid'] = None if dp is None else abs(dp)
+        row['payout_ratio'] = _pct(row['dividends_paid'], row['net_income'])
         annual.append(row)
 
     def ser(key):
