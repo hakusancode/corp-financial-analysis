@@ -159,6 +159,37 @@ def _fmt_ratio_val(val):
     return (f'{val:.2f}%', color)
 
 
+# ── 배당 스크리너 표시용 ─────────────────────────────────────────────────────
+_GRADE_COLORS = {'양호': '#4ADE80', '주의': '#FBBF24', '위험': '#FF6B6B', '미평가': 'gray60'}
+_GRADE_MARK = {'양호': '○', '주의': '△', '위험': '×', '미평가': '-'}
+
+
+def _scr_val(v, kind):
+    '''스크리너 셀 값 포맷.'''
+    if v is None:
+        return 'N/A'
+    if kind == 'pct':
+        return f'{v:.2f}%'
+    if kind == 'pct1':
+        return f'{v:.1f}%'
+    if kind == 'pct0':
+        return f'{v:.0f}%'
+    if kind == 'won':
+        return f'{v:,.0f}'
+    if kind == 'usd':
+        return f'${v:.2f}'
+    if kind == 'mult':
+        return f'{v:.2f}x'
+    return str(v)
+
+
+def _scr_color(v):
+    '''스크리너 수치 색상: 없음=회색, 음수=빨강, 그 외 흰색.'''
+    if v is None:
+        return 'gray50'
+    return '#FF6B6B' if v < 0 else 'white'
+
+
 class DartApp(ctk.CTk):
 
     def __init__(self):
@@ -194,6 +225,7 @@ class DartApp(ctk.CTk):
         self._right = right
         self._build_analysis(right)     # 한국(DART) 탭뷰 → self._kr_tabview
         self._build_us_panel(right)     # 미국 분석 패널 → self._us_frame (초기 숨김)
+        self._build_screener_panel(right)  # 배당 스크리너 패널 → self._screen_content (초기 숨김)
 
     def _build_top(self, parent):
         f = ctk.CTkFrame(parent)
@@ -208,7 +240,8 @@ class DartApp(ctk.CTk):
         ctk.CTkEntry(f, textvariable=self.save_dir_var).grid(row=0, column=3, padx=4, pady=8, sticky='ew')
         ctk.CTkButton(f, text='찾아보기', width=80, command=self._browse_dir).grid(row=0, column=4, padx=(4, 10), pady=8)
         self.market_seg = ctk.CTkSegmentedButton(
-            f, values=['🇰🇷 한국 (DART)', '🇺🇸 미국 (EDGAR)'], command=self._on_market_change)
+            f, values=['🇰🇷 한국 (DART)', '🇺🇸 미국 (EDGAR)', '💰 배당 스크리너'],
+            command=self._on_market_change)
         self.market_seg.set('🇰🇷 한국 (DART)')
         self.market_seg.grid(row=1, column=0, columnspan=5, padx=10, pady=(0, 8), sticky='w')
 
@@ -470,17 +503,27 @@ class DartApp(ctk.CTk):
     # ── 미국 분석 (KR/US 토글) ───────────────────────────────────────────────
 
     def _on_market_change(self, value):
-        self.market_mode = 'US' if '미국' in value else 'KR'
+        if '스크리너' in value:
+            self.market_mode = 'SCREEN'
+        elif '미국' in value:
+            self.market_mode = 'US'
+        else:
+            self.market_mode = 'KR'
         self._switch_market()
 
     def _switch_market(self):
+        self._kr_tabview.grid_remove()
+        self._us_container.grid_remove()
+        self._screen_container.grid_remove()
         if self.market_mode == 'US':
-            self._kr_tabview.grid_remove()
             self._us_container.grid()
             self.search_title.configure(text='미국 종목 검색')
             self.search_entry.configure(placeholder_text='티커 입력 후 엔터 (예: NVDA)')
+        elif self.market_mode == 'SCREEN':
+            self._screen_container.grid()
+            self.search_title.configure(text='회사 검색 (스크리너는 우측 패널에서)')
+            self.search_entry.configure(placeholder_text='회사명 입력 후 엔터')
         else:
-            self._us_container.grid_remove()
             self._kr_tabview.grid()
             self.search_title.configure(text='회사 검색')
             self.search_entry.configure(placeholder_text='회사명 입력 후 엔터')
@@ -583,6 +626,185 @@ class DartApp(ctk.CTk):
                 self.after(0, lambda: self._render_us('error'))
 
         threading.Thread(target=run, daemon=True).start()
+
+    # ── 배당 스크리너 ────────────────────────────────────────────────────────
+
+    def _build_screener_panel(self, parent):
+        cont = ctk.CTkFrame(parent, fg_color='transparent')
+        cont.grid(row=0, column=0, sticky='nsew', padx=8, pady=8)
+        cont.grid_columnconfigure(0, weight=1)
+        cont.grid_rowconfigure(2, weight=1)
+        self._screen_container = cont
+
+        bar = ctk.CTkFrame(cont)
+        bar.grid(row=0, column=0, sticky='ew', padx=4, pady=(4, 2))
+        self._screen_market = ctk.CTkSegmentedButton(bar, values=['🇰🇷 한국', '🇺🇸 미국'])
+        self._screen_market.set('🇰🇷 한국')
+        self._screen_market.grid(row=0, column=0, padx=(10, 12), pady=10)
+        ctk.CTkLabel(bar, text='최소 배당률(%)').grid(row=0, column=1, padx=(4, 4))
+        self._screen_minyield = tk.StringVar(value='3')
+        ctk.CTkEntry(bar, textvariable=self._screen_minyield, width=58).grid(row=0, column=2, padx=(0, 10))
+        ctk.CTkLabel(bar, text='상위').grid(row=0, column=3, padx=(4, 4))
+        self._screen_top = tk.StringVar(value='20')
+        ctk.CTkEntry(bar, textvariable=self._screen_top, width=52).grid(row=0, column=4, padx=(0, 10))
+        self._screen_deep = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(bar, text='정밀검증(FCF)', variable=self._screen_deep).grid(row=0, column=5, padx=(4, 10))
+        self._screen_btn = ctk.CTkButton(bar, text='스크리닝 실행', width=110, command=self._run_screener)
+        self._screen_btn.grid(row=0, column=6, padx=(4, 10), pady=10)
+
+        row2 = ctk.CTkFrame(cont, fg_color='transparent')
+        row2.grid(row=1, column=0, sticky='ew', padx=6, pady=(0, 4))
+        row2.grid_columnconfigure(0, weight=1)
+        self._screen_targets = tk.StringVar()
+        ent = ctk.CTkEntry(row2, textvariable=self._screen_targets,
+                           placeholder_text='종목 직접 지정(공백 구분, 비우면 기본 유니버스). '
+                                            '예: 삼성전자 KT&G 005930  /  KO PG XOM')
+        ent.grid(row=0, column=0, sticky='ew', padx=(4, 4))
+        ent.bind('<Return>', lambda _: self._run_screener())
+
+        _c, self._screen_content = self._make_scroll_area(cont)
+        _c.grid(row=2, column=0, sticky='nsew', padx=4, pady=4)
+        self._screen_content.grid_columnconfigure(0, weight=1)
+        self._render_screener('initial')
+        cont.grid_remove()
+
+    def _run_screener(self):
+        market = 'KR' if '한국' in self._screen_market.get() else 'US'
+        try:
+            min_yield = float(self._screen_minyield.get() or 0)
+        except ValueError:
+            min_yield = 0.0
+        top = None
+        if self._screen_top.get().strip():
+            try:
+                top = int(self._screen_top.get())
+            except ValueError:
+                top = None
+        deep = bool(self._screen_deep.get())
+        raw = self._screen_targets.get().strip()
+
+        self._render_screener('loading', market=market)
+        self._screen_btn.configure(state='disabled', text='실행 중...')
+
+        def run():
+            try:
+                import dividend_screener as dv
+                if market == 'KR':
+                    api_key = self.api_key_var.get().strip()
+                    if not api_key:
+                        self._log('배당 스크리너(한국): 상단에 DART 인증키를 입력하세요.')
+                        self.after(0, lambda: self._render_screener('error', market='KR'))
+                        return
+                    targets = raw.split() if raw else dv._KR_UNIVERSE
+                    try:
+                        year = int(self.end_year_var.get()) - 1
+                    except ValueError:
+                        year = 2024
+                    rows = dv.screen_kr(api_key, targets, end_year=year, min_yield=min_yield,
+                                        deep=deep, log_fn=self._log)
+                else:
+                    tickers = [t.upper() for t in raw.split()] if raw else dv._US_UNIVERSE
+                    rows = dv.screen_us(tickers, min_yield=min_yield, deep=deep, log_fn=self._log)
+                if top:
+                    rows = rows[:top]
+                self._log(f'스크리닝 완료: {len(rows)}종목')
+                self.after(0, lambda: self._render_screener('done', rows=rows, market=market))
+            except Exception as e:  # noqa: BLE001
+                self._log(f'스크리너 오류: {e}')
+                self.after(0, lambda: self._render_screener('error', market=market))
+            finally:
+                self.after(0, lambda: self._screen_btn.configure(state='normal', text='스크리닝 실행'))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _render_screener(self, state, rows=None, market='KR'):
+        for w in self._screen_content.winfo_children():
+            w.destroy()
+        if state == 'initial':
+            ctk.CTkLabel(
+                self._screen_content, justify='left', text_color='gray',
+                text='💰 고배당 스크리너 — 시장·최소 배당률·상위 개수를 정하고 [스크리닝 실행]을 누르세요.\n'
+                     '단순 고배당이 아니라 배당성향·FCF 커버리지·연속배당으로 배당 함정을 걸러 등급을 매깁니다.\n'
+                     '(한국은 상단에 DART 인증키 필요, 미국은 불필요. 정밀검증을 끄면 빠르지만 등급이 미평가됩니다.)'
+            ).grid(row=0, column=0, sticky='w', padx=10, pady=12)
+            return
+        if state == 'loading':
+            ctk.CTkLabel(self._screen_content, text='스크리닝 중... (좌측 하단 로그에서 진행 상황 확인)',
+                         text_color='gray').grid(row=0, column=0, padx=10, pady=12)
+            return
+        if state == 'error':
+            ctk.CTkLabel(self._screen_content, text='스크리닝에 실패했습니다. 로그를 확인하세요.',
+                         text_color='#FF6B6B').grid(row=0, column=0, padx=10, pady=12)
+            return
+
+        import dividend_screener as dv
+        is_kr = market == 'KR'
+        if not rows:
+            ctk.CTkLabel(self._screen_content, text='조건을 만족하는 종목이 없습니다. 최소 배당률을 낮춰보세요.',
+                         text_color='#FFA040').grid(row=0, column=0, padx=10, pady=12)
+            return
+
+        f = ctk.CTkFrame(self._screen_content, fg_color='transparent')
+        f.grid(row=0, column=0, sticky='nw', padx=8, pady=8)
+        if is_kr:
+            cols = [('#', 34, 'e'), ('회사', 156, 'w'), ('배당률', 72, 'e'), ('공시', 60, 'e'),
+                    ('DPS', 86, 'e'), ('배당성향', 70, 'e'), ('FCF커버', 72, 'e'), ('연속', 50, 'center'),
+                    ('등급', 62, 'center'), ('비고', 300, 'w')]
+        else:
+            cols = [('#', 34, 'e'), ('티커', 60, 'w'), ('회사', 168, 'w'), ('배당률', 72, 'e'),
+                    ('DPS', 72, 'e'), ('배당성향', 70, 'e'), ('FCF커버', 72, 'e'), ('연속', 50, 'center'),
+                    ('등급', 62, 'center'), ('비고', 300, 'w')]
+        for ci, (h, wdt, anc) in enumerate(cols):
+            ctk.CTkLabel(f, text=h, font=ctk.CTkFont(weight='bold'), width=wdt,
+                         anchor=('w' if anc == 'w' else 'center' if anc == 'center' else 'e')
+                         ).grid(row=0, column=ci, padx=3, pady=(2, 4))
+        ctk.CTkFrame(f, height=1, fg_color='gray40').grid(row=1, column=0, columnspan=len(cols),
+                                                          sticky='ew', pady=2)
+
+        for i, row in enumerate(rows, 1):
+            g, reasons = dv.grade(row)
+            gc = _GRADE_COLORS.get(g, 'gray60')
+            streak = (f"{row['div_streak']}/{row.get('div_years', 3)}"
+                      if row.get('div_streak') is not None else 'N/A')
+            note = reasons[0] if reasons else ''
+            gtext = f"{_GRADE_MARK.get(g, '')} {g}"
+            if is_kr:
+                cells = [
+                    (str(i), 'gray70'),
+                    ((row.get('name') or '')[:16], 'white'),
+                    (_scr_val(row.get('div_yield'), 'pct'), _scr_color(row.get('div_yield'))),
+                    (_scr_val(row.get('dart_yield'), 'pct1'), 'gray70'),
+                    (_scr_val(row.get('dps'), 'won'), 'white'),
+                    (_scr_val(row.get('payout_ratio'), 'pct0'), _scr_color(row.get('payout_ratio'))),
+                    (_scr_val(row.get('fcf_coverage'), 'mult'), _scr_color(row.get('fcf_coverage'))),
+                    (streak, 'white' if row.get('div_streak') else 'gray50'),
+                    (gtext, gc), (note, gc),
+                ]
+            else:
+                cells = [
+                    (str(i), 'gray70'),
+                    (row.get('ticker', ''), 'white'),
+                    ((row.get('name') or '')[:22], 'white'),
+                    (_scr_val(row.get('div_yield'), 'pct'), _scr_color(row.get('div_yield'))),
+                    (_scr_val(row.get('dps'), 'usd'), 'white'),
+                    (_scr_val(row.get('payout_ratio'), 'pct0'), _scr_color(row.get('payout_ratio'))),
+                    (_scr_val(row.get('fcf_coverage'), 'mult'), _scr_color(row.get('fcf_coverage'))),
+                    (streak, 'white' if row.get('div_streak') else 'gray50'),
+                    (gtext, gc), (note, gc),
+                ]
+            for ci, ((text, color), (_, wdt, anc)) in enumerate(zip(cells, cols)):
+                last = ci == len(cols) - 1
+                ctk.CTkLabel(f, text=text, text_color=color, width=wdt,
+                             anchor=('w' if anc == 'w' else 'center' if anc == 'center' else 'e'),
+                             wraplength=(wdt - 6 if last else 0), justify='left'
+                             ).grid(row=i + 1, column=ci, padx=3, pady=3)
+
+        cap = '· 배당률=최근 DPS÷현재가   공시=DART 시가배당률(결산 시점)   ' if is_kr else '· '
+        cap += 'FCF커버=FCF÷배당총액(1x 미만이면 번 현금보다 많이 배당)   ○양호 △주의 ×위험(함정 의심) -미평가'
+        ctk.CTkLabel(self._screen_content, text=cap, text_color='gray50', justify='left'
+                     ).grid(row=1, column=0, sticky='w', padx=12, pady=(2, 4))
+        ctk.CTkLabel(self._screen_content, text='※ 공시된 과거 배당 기준 — 미래 배당을 보장하지 않습니다.',
+                     text_color='gray50').grid(row=2, column=0, sticky='w', padx=12, pady=(0, 10))
 
     def _fill_listbox(self, results):
         self._search_results = results
